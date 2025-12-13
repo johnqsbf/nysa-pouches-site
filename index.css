@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply antialiased text-nysa-black bg-nysa-paper;
+    }
+}
+body {
+    overflow-x: hidden;
+}
+
+/* Скрываем стандартный курсор на десктопах */
+@media (min-width: 768px) {
+
+    body,
+    a,
+    button,
+    input,
+    textarea {
+        cursor: none !important;
+    }
+}
