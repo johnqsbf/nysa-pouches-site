@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Product } from '../types';
 
-// Список продуктов (Порядок проверен)
 const products: Product[] = [
   { 
     id: 1, 
@@ -90,11 +89,20 @@ export const FormSection: React.FC = () => {
   const sectionRef = useRef<HTMLElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   
-  // State для смены фона
   const [activeColor, setActiveColor] = useState(products[0].accentColor);
-  
-  // State для управления модальным окном (Popup)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Определяем мобильное устройство
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -108,20 +116,16 @@ export const FormSection: React.FC = () => {
       const windowHeight = window.innerHeight;
       const scrollY = window.scrollY;
 
-      // Рассчитываем пределы скролла
       const start = sectionTop;
       
-      // Если мы еще не дошли до секции
       if (scrollY < start) {
         track.style.transform = `translateX(0px)`;
         return;
       }
 
-      // Вычисляем прогресс прокрутки внутри секции от 0 до 1
       let progress = (scrollY - start) / (sectionHeight - windowHeight);
       progress = Math.max(0, Math.min(progress, 1)); 
 
-      // Двигаем ленту влево
       const maxTranslate = track.scrollWidth - window.innerWidth;
       const translateX = progress * maxTranslate;
 
@@ -134,12 +138,27 @@ export const FormSection: React.FC = () => {
       );
       
       setActiveColor(products[activeIndex].accentColor);
+
+      // На мобильных: snap к ближайшему продукту
+      if (isMobile) {
+        const snapThreshold = 0.05; // 5% порог для snap
+        const idealProgress = activeIndex / (products.length - 1);
+        const diff = Math.abs(progress - idealProgress);
+        
+        if (diff < snapThreshold) {
+          const snapTranslate = (activeIndex / (products.length - 1)) * maxTranslate;
+          track.style.transform = `translateX(-${snapTranslate}px)`;
+          track.style.transition = 'transform 0.3s ease-out';
+        } else {
+          track.style.transition = 'none';
+        }
+      }
     };
 
     window.addEventListener('scroll', handleScroll);
     handleScroll(); 
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isMobile]);
 
   return (
     <section 
@@ -152,7 +171,10 @@ export const FormSection: React.FC = () => {
       <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center">
         
         {/* Track */}
-        <div ref={trackRef} className="flex h-full items-center will-change-transform">
+        <div 
+          ref={trackRef} 
+          className="flex h-full items-center will-change-transform"
+        >
           
           {products.map((product, index) => (
             <div 
@@ -178,7 +200,6 @@ export const FormSection: React.FC = () => {
                      </p>
 
                      <div className="pt-8">
-                        {/* КНОПКА ОТКРЫТИЯ ПОПАПА */}
                         <button 
                           onClick={() => setSelectedProduct(product)}
                           className="px-8 py-3 border border-white/40 text-white text-xs uppercase tracking-widest hover:bg-white hover:text-black transition-all duration-300"
@@ -215,14 +236,14 @@ export const FormSection: React.FC = () => {
         COLLECTION
       </div>
 
-      {/* --- МОДАЛЬНОЕ ОКНО (POPUP) --- */}
+      {/* МОДАЛЬНОЕ ОКНО (POPUP) */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           
           {/* Фон (Backdrop) с размытием */}
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity duration-300"
-            onClick={() => setSelectedProduct(null)} // Закрыть при клике на фон
+            onClick={() => setSelectedProduct(null)}
           ></div>
 
           {/* Карточка продукта */}
@@ -238,7 +259,7 @@ export const FormSection: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2">
               
-              {/* Левая часть: Картинка (с цветом продукта) */}
+              {/* Левая часть: Картинка */}
               <div className={`relative flex items-center justify-center p-8 ${selectedProduct.accentColor.replace('bg-', 'bg-opacity-20 bg-')}`}>
                  <div className={`absolute inset-0 opacity-10 ${selectedProduct.accentColor}`}></div>
                  <img 
@@ -273,8 +294,6 @@ export const FormSection: React.FC = () => {
                       ))}
                    </div>
                  </div>
-
-                 {/* Кнопка Add to Order удалена */}
               </div>
 
             </div>

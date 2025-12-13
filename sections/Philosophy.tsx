@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
@@ -18,12 +18,21 @@ export const Philosophy: React.FC = () => {
   const introRef = useRef<HTMLDivElement>(null);
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [videoSource, setVideoSource] = useState<string>('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Определяем источник видео при монтировании компонента
+  useEffect(() => {
+    const checkMobile = window.innerWidth < 768;
+    setIsMobile(checkMobile);
+    const source = checkMobile ? './manifest-optimized.mp4' : './manifest.mov';
+    setVideoSource(source);
+  }, []);
 
   // 1. АНИМАЦИЯ МАНИФЕСТА (Текст в начале)
   useGSAP(() => {
     if (!introRef.current) return;
 
-    // Простое появление текста при скролле (как "вырисовывание")
     gsap.fromTo(introRef.current, 
       { autoAlpha: 0, y: 50 }, 
       {
@@ -32,9 +41,9 @@ export const Philosophy: React.FC = () => {
         ease: "power2.out",
         scrollTrigger: {
           trigger: introRef.current,
-          start: "top 85%", // Когда верх элемента достигает 85% экрана
-          end: "top 40%",   // Заканчиваем анимацию ближе к центру
-          scrub: 1,         // Привязка к скроллу (1 сек задержка для плавности)
+          start: "top 85%",
+          end: "top 40%",
+          scrub: 1,
         }
       }
     );
@@ -42,34 +51,56 @@ export const Philosophy: React.FC = () => {
 
   // 2. АНИМАЦИЯ ВИДЕО (PIN + SCRUB)
   useGSAP(() => {
-    // Ждем загрузки видео и наличия элементов
     if (!isVideoLoaded || !videoSectionRef.current || !videoRef.current || !textContainerRef.current) return;
 
     const video = videoRef.current;
+    
+    // Для iOS: принудительная загрузка видео
+    if (isMobile) {
+      video.load();
+      // Попытка воспроизведения для инициализации
+      video.play().then(() => {
+        video.pause();
+        video.currentTime = 0;
+      }).catch(() => {
+        // Игнорируем ошибки автоплея
+      });
+    }
     
     // Создаем мастер-таймлайн для секции
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: videoSectionRef.current,
-        start: "top top", // Фиксируем, когда верх секции касается верха экрана
-        end: "+=500%",    // Длина фиксации (5 экранов)
-        pin: true,        // Закрепляем
-        scrub: 0.5,       // Плавность скролла
+        start: "top top",
+        end: "+=500%",
+        pin: true,
+        scrub: 0.5,
+        onUpdate: (self) => {
+          // Альтернативный метод для iOS: прямое управление currentTime
+          if (video.duration) {
+            const targetTime = self.progress * video.duration;
+            // Используем requestAnimationFrame для плавности
+            requestAnimationFrame(() => {
+              video.currentTime = targetTime;
+            });
+          }
+        }
       }
     });
 
-    // ШАГ 1: Прокрутка видео (Scrubbing)
-    // Используем call, чтобы убедиться, что duration корректный
-    if (video.duration) {
+    // Только для десктопа используем GSAP анимацию видео
+    if (!isMobile && video.duration) {
       tl.to(video, {
         currentTime: video.duration,
         ease: "none",
-        duration: 10 // Условная длительность в рамках timeline
+        duration: 10
       });
+    } else {
+      // Для мобильных создаем пустую анимацию той же длительности
+      tl.to({}, { duration: 10 });
     }
 
-    // ШАГ 2: Появление текста (Method/Result)
-    // Начинаем появление за 2 секунды до конца прокрутки видео
+    // ШАГ 2: Появление текста
     tl.fromTo(textContainerRef.current, 
       { autoAlpha: 0, x: -20 }, 
       { 
@@ -81,7 +112,7 @@ export const Philosophy: React.FC = () => {
       "-=2" 
     );
 
-  }, { scope: containerRef, dependencies: [isVideoLoaded] });
+  }, { scope: containerRef, dependencies: [isVideoLoaded, isMobile] });
 
   return (
     <section ref={containerRef} id="idea" className="bg-white text-nysa-black relative">
@@ -99,7 +130,7 @@ export const Philosophy: React.FC = () => {
             We are not just manufacturers. <br/>
             We are <span className="italic font-light text-nysa-accent">curators of sensation.</span>
           </p>
-          <p className="indent-12 md:indent-32 opacity-80">
+          <p className="opacity-80">
             NYSA bridges the gap between biological need and aesthetic desire. 
             We believe that flavor is a cultural code—a way to speak without words.
           </p>
@@ -116,14 +147,24 @@ export const Philosophy: React.FC = () => {
       >
         
         {/* Видео слой */}
-        <video
-          ref={videoRef}
-          src="./manifest.mov" 
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover z-0"
-          onLoadedMetadata={() => setIsVideoLoaded(true)}
-        />
+        {videoSource && (
+          <video
+            ref={videoRef}
+            src={videoSource}
+            muted
+            playsInline
+            preload="auto"
+            webkit-playsinline="true"
+            className="absolute inset-0 w-full h-full object-cover z-0"
+            onLoadedMetadata={() => setIsVideoLoaded(true)}
+            onCanPlayThrough={() => {
+              // Дополнительная проверка готовности для iOS
+              if (videoRef.current && videoRef.current.readyState >= 3) {
+                setIsVideoLoaded(true);
+              }
+            }}
+          />
+        )}
 
         {/* Текстовый слой: Слева Сверху, Столбиком */}
         <div 
